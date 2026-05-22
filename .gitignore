@@ -1,0 +1,9 @@
+# Proteger API key
+python-service/.env
+
+# Dependencias Node
+backend/node_modules
+
+# Cache Python
+__pycache__/
+*.pyc

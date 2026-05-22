@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analizador de Marquillas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      width: 90%;
+      max-width: 650px;
+    }
+    h1 {
+      text-align: center;
+      color: #2d3748;
+      margin-bottom: 8px;
+      font-size: 1.9rem;
+    }
+    .subtitulo {
+      text-align: center;
+      color: #718096;
+      margin-bottom: 30px;
+      font-size: 0.95rem;
+    }
+    .upload-area {
+      border: 2px dashed #cbd5e0;
+      border-radius: 12px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover { border-color: #667eea; background: #f0f0ff; }
+    .upload-area p { color: #718096; margin-top: 10px; }
+    .upload-icon { font-size: 3rem; }
+    input[type="file"] { display: none; }
+    #preview {
+      width: 100%;
+      max-height: 250px;
+      object-fit: contain;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+      border: 1px solid #e2e8f0;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity 0.3s;
+      font-weight: 600;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .loading {
+      text-align: center;
+      color: #667eea;
+      margin-top: 16px;
+      display: none;
+      font-weight: 500;
+    }
+
+    /* Resultado */
+    #resultado { display: none; margin-top: 24px; }
+
+    .resultado-titulo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #667eea;
+    }
+
+    .simbolo-card {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-left: 4px solid #667eea;
+    }
+    .simbolo-nombre {
+      font-weight: 700;
+      color: #2d3748;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+    .simbolo-fila {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      font-size: 0.88rem;
+    }
+    .etiqueta {
+      background: #667eea;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .etiqueta.verde { background: #48bb78; }
+    .simbolo-texto { color: #4a5568; }
+
+    .resumen-box {
+      background: linear-gradient(135deg, #667eea15, #764ba215);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      border: 1px solid #667eea30;
+    }
+    .resumen-titulo {
+      font-weight: 700;
+      color: #2d3748;
+      margin-bottom: 12px;
+      font-size: 1rem;
+    }
+    .resumen-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      color: #4a5568;
+    }
+    .resumen-item::before {
+      content: "✓";
+      color: #48bb78;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>👕 Analizador de Marquillas</h1>
+    <p class="subtitulo">Sube una foto de la marquilla y te decimos cómo lavar tu prenda</p>
+
+    <div class="upload-area" onclick="document.getElementById('inputImagen').click()">
+      <div class="upload-icon">📷</div>
+      <p>Haz clic para subir una foto de la marquilla</p>
+      <p style="font-size:0.8rem; margin-top:5px;">JPG, PNG — desde tu celular o PC</p>
+    </div>
+
+    <input type="file" id="inputImagen" accept="image/*" onchange="mostrarPreview(event)">
+    <img id="preview" alt="Preview">
+
+    <button id="btnAnalizar" onclick="analizar()" disabled>
+      🔍 Analizar marquilla
+    </button>
+
+    <div class="loading" id="loading">⏳ Analizando símbolos con IA...</div>
+    <div id="resultado"></div>
+  </div>
+
+  <script>
+    function mostrarPreview(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const preview = document.getElementById("preview");
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+      document.getElementById("btnAnalizar").disabled = false;
+    }
+
+    function parsearResultado(texto) {
+      const simbolos = [];
+      let resumen = "";
+
+      // Separar sección de resumen
+      const parteResumen = texto.split(/###?\s*Resumen/i);
+      const parteSimbolos = parteResumen[0];
+      if (parteResumen[1]) resumen = parteResumen[1];
+
+      // Extraer símbolos numerados
+      const bloques = parteSimbolos.split(/\n(?=\d+\.\s)/);
+      bloques.forEach(bloque => {
+        if (!bloque.trim()) return;
+        const lineas = bloque.trim().split("\n");
+        const nombre = lineas[0].replace(/^\d+\.\s+\*?\*?Símbolo:?\*?\*?\s*/i, "").replace(/\*\*/g, "").trim();
+        let significado = "";
+        let instruccion = "";
+        lineas.forEach(l => {
+          if (/significado/i.test(l)) significado = l.replace(/.*Significado:\*?\*?\s*/i, "").replace(/\*\*/g, "").trim();
+          if (/instrucción|instruccion/i.test(l)) instruccion = l.replace(/.*Instrucción.*?:\*?\*?\s*/i, "").replace(/\*\*/g, "").trim();
+        });
+        if (nombre) simbolos.push({ nombre, significado, instruccion });
+      });
+
+      // Extraer ítems del resumen
+      const itemsResumen = resumen
+        .split("\n")
+        .filter(l => l.trim().startsWith("-"))
+        .map(l => l.replace(/^-\s*/, "").replace(/\*\*/g, "").trim());
+
+      return { simbolos, itemsResumen };
+    }
+
+    function renderizarResultado(texto) {
+      const { simbolos, itemsResumen } = parsearResultado(texto);
+      const div = document.getElementById("resultado");
+      div.style.display = "block";
+
+      let html = `<div class="resultado-titulo">🏷️ Símbolos detectados (${simbolos.length})</div>`;
+
+      simbolos.forEach(s => {
+        html += `
+          <div class="simbolo-card">
+            <div class="simbolo-nombre">📌 ${s.nombre}</div>
+            ${s.significado ? `<div class="simbolo-fila"><span class="etiqueta">Significado</span><span class="simbolo-texto">${s.significado}</span></div>` : ""}
+            ${s.instruccion ? `<div class="simbolo-fila"><span class="etiqueta verde">Instrucción</span><span class="simbolo-texto">${s.instruccion}</span></div>` : ""}
+          </div>`;
+      });
+
+      if (itemsResumen.length > 0) {
+        html += `<div class="resumen-box"><div class="resumen-titulo">📋 Resumen de cuidado</div>`;
+        itemsResumen.forEach(item => {
+          html += `<div class="resumen-item">${item}</div>`;
+        });
+        html += `</div>`;
+      }
+
+      div.innerHTML = html;
+    }
+
+    async function analizar() {
+      const file = document.getElementById("inputImagen").files[0];
+      if (!file) return;
+
+      const btn = document.getElementById("btnAnalizar");
+      const loading = document.getElementById("loading");
+      const resultado = document.getElementById("resultado");
+
+      btn.disabled = true;
+      loading.style.display = "block";
+      resultado.style.display = "none";
+      resultado.innerHTML = "";
+
+      const formData = new FormData();
+      formData.append("imagen", file);
+
+      try {
+        const respuesta = await fetch("http://localhost:3000/analizar", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await respuesta.json();
+        renderizarResultado(data.resultado);
+      } catch (error) {
+        resultado.style.display = "block";
+        resultado.innerHTML = "<p style='color:red'>❌ Error al conectar con el servidor.</p>";
+      } finally {
+        btn.disabled = false;
+        loading.style.display = "none";
+      }
+    }
+  </script>
+</body>
+</html>
